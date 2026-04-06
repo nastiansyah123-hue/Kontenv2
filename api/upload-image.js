@@ -1,36 +1,54 @@
-import { createClient } from "@supabase/supabase-js";
-
-export const config = { api: { bodyParser: { sizeLimit: "6mb" } } };
-
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  const bucket      = process.env.SUPABASE_BUCKET || "ad-creator";
+  const { prompt, imageUrl, model, width, height } = req.body;
+  if (!prompt) return res.status(400).json({ error: "prompt wajib diisi" });
 
-  if (!supabaseUrl || !supabaseKey)
-    return res.status(500).json({ error: "Supabase env variables belum dikonfigurasi" });
+  const models = {
+    "flux-free":     { id: "black-forest-labs/FLUX.1-schnell-Free",          steps: 4,  supportsImg: false },
+    "flux-schnell":  { id: "black-forest-labs/FLUX.1-schnell",               steps: 4,  supportsImg: false },
+    "wan-2-6":       { id: "Wan-AI/Wan2.6-image",                            steps: 28, supportsImg: true  },
+    "flux-kontext":  { id: "black-forest-labs/FLUX.1-kontext-dev",           steps: 20, supportsImg: true  },
+    "flux-1-1-pro":  { id: "black-forest-labs/FLUX.1.1-pro",                 steps: 25, supportsImg: true  },
+    "flux-dev":      { id: "black-forest-labs/FLUX.1-dev",                   steps: 20, supportsImg: false },
+    "sd-3-5":        { id: "stabilityai/stable-diffusion-3-5-large",         steps: 28, supportsImg: false },
+    "sd-3-5-turbo":  { id: "stabilityai/stable-diffusion-3-5-large-turbo",   steps: 4,  supportsImg: false },
+    "playground-v3": { id: "playgroundai/playground-v3",                     steps: 25, supportsImg: false },
+  };
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { imageBase64, imageMediaType, fileName } = req.body;
-  if (!imageBase64 || !imageMediaType)
-    return res.status(400).json({ error: "imageBase64 dan imageMediaType wajib diisi" });
+  const selected = models[model] || models["flux-free"];
+  const payload  = {
+    model: selected.id,
+    prompt: `${prompt}, professional advertising photography, commercial product shot, high quality, sharp focus`,
+    width: width || 1024, height: height || 1024,
+    steps: selected.steps, n: 1, response_format: "url",
+  };
+  if (selected.supportsImg && imageUrl) payload.image_url = imageUrl;
 
   try {
-    const buffer = Buffer.from(imageBase64, "base64");
-    const ext    = imageMediaType.split("/")[1] || "jpg";
-    const path   = `uploads/${Date.now()}-${(fileName || "foto").replace(/\s+/g, "-")}.${ext}`;
+    let resp = await fetch("https://api.together.xyz/v1/images/generations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-    const { error } = await supabase.storage
-      .from(bucket)
-      .upload(path, buffer, { contentType: imageMediaType, upsert: true });
+    // Fallback ke FLUX Free jika model gagal
+    if (!resp.ok) {
+      resp = await fetch("https://api.together.xyz/v1/images/generations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, model: "black-forest-labs/FLUX.1-schnell-Free", steps: 4, image_url: undefined }),
+      });
+    }
 
-    if (error) throw new Error(error.message);
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
 
-    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
-    res.status(200).json({ url: urlData.publicUrl, path });
+    const data = await resp.json();
+    res.status(200).json({ imageUrl: data.data[0].url, modelUsed: selected.id });
   } catch (err) {
-    res.status(500).json({ error: "Gagal upload foto: " + err.message });
+    res.status(500).json({ error: "Gagal generate gambar: " + err.message });
   }
 }
