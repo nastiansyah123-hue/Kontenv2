@@ -146,6 +146,14 @@
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #dc2626; }
 
+
+    /* RENDER MODE TOGGLE */
+    .mode-toggle { display: flex; gap: 0; border: 1px solid #e8e8e4; border-radius: 10px; overflow: hidden; }
+    .mode-btn { flex: 1; padding: 8px 6px; border: none; background: #fff; color: #6b6b6b; font-size: 11px; font-weight: 500; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; text-align: center; line-height: 1.4; }
+    .mode-btn:first-child { border-right: 1px solid #e8e8e4; }
+    .mode-btn.active { background: #1a1a1a; color: #fff; }
+    .mode-desc { font-size: 10px; color: #9b9b9b; margin-top: 4px; }
+
     @media (max-width: 520px) {
       .results-grid { grid-template-columns: 1fr; }
       .size-grid { grid-template-columns: repeat(2, 1fr); }
@@ -236,7 +244,21 @@
         </div>
       </div>
 
+
       <div class="settings-row">
+        <div class="field-label">Mode tampilan produk</div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="modeOverlay" onclick="setRenderMode('overlay')">
+            📸 Foto Asli + Background AI<br><small style="opacity:.7;font-weight:400">Produk 100% asli di-overlay</small>
+          </button>
+          <button class="mode-btn" id="modeAI" onclick="setRenderMode('ai')">
+            🎨 AI Generate Keseluruhan<br><small style="opacity:.7;font-weight:400">AI buat ulang dengan produk</small>
+          </button>
+        </div>
+        <div class="mode-desc" id="modeDesc">Foto produkmu ditempel di atas background yang di-generate AI — produk terlihat persis aslinya</div>
+      </div>
+
+      <div class="settings-row" id="modelSelectWrap">
         <div class="field-label">Model AI gambar (Together AI)</div>
         <select class="model-select" id="modelSelect">
           <optgroup label="⚡ Cepat & Gratis">
@@ -306,6 +328,7 @@ let fotoMediaType = null;
 let supabaseUrl = null; // URL foto setelah diupload ke Supabase
 let qty = 3;
 let selectedSize = { w: 1080, h: 1080 };
+let renderMode = 'overlay'; // 'overlay' atau 'ai'
 
 const LAYOUTS = ['center','left','bottom','overlay'];
 const STYLES  = ['geometric','minimal','bold','luxury','organic'];
@@ -466,8 +489,23 @@ function checkReady() {
   if (ok) { setStep(document.getElementById('sn3'), 'active'); setStep(document.getElementById('st3'), 'active'); }
 }
 
-// ── RENDER CANVAS (overlay teks di atas gambar AI) ──
-function renderAd(W, H, aiImageEl, adData) {
+
+// ── RENDER MODE ──
+function setRenderMode(mode) {
+  renderMode = mode;
+  document.getElementById('modeOverlay').classList.toggle('active', mode === 'overlay');
+  document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
+  const descs = {
+    'overlay': 'Foto produkmu ditempel di atas background yang di-generate AI — produk terlihat persis aslinya',
+    'ai': 'Together AI generate ulang gambar iklan dengan foto produkmu sebagai referensi visual'
+  };
+  document.getElementById('modeDesc').textContent = descs[mode];
+  // Sembunyikan model select jika mode overlay (hanya perlu generate background)
+  document.getElementById('modelSelectWrap').style.opacity = mode === 'overlay' ? '0.5' : '1';
+}
+
+// ── RENDER CANVAS ──
+function renderAd(W, H, aiImageEl, adData, productImg, mode) {
   const cvs = document.createElement('canvas');
   cvs.width = W; cvs.height = H;
   const c = cvs.getContext('2d');
@@ -478,9 +516,12 @@ function renderAd(W, H, aiImageEl, adData) {
   gr.addColorStop(0, sc.bg[0]); gr.addColorStop(1, sc.bg[1]);
   c.fillStyle = gr; c.fillRect(0, 0, W, H);
 
-  // Gambar AI dari Together AI
-  if (aiImageEl) {
-    c.drawImage(aiImageEl, 0, 0, W, H);
+  if (mode === 'ai') {
+    // MODE AI: gambar AI penuh sebagai background
+    if (aiImageEl) c.drawImage(aiImageEl, 0, 0, W, H);
+  } else {
+    // MODE OVERLAY: gambar AI sebagai background, foto produk asli di-overlay
+    if (aiImageEl) c.drawImage(aiImageEl, 0, 0, W, H);
   }
 
   // Overlay gelap bawah untuk keterbacaan teks
@@ -494,6 +535,24 @@ function renderAd(W, H, aiImageEl, adData) {
   ovGr.addColorStop(0, 'rgba(0,0,0,0.62)');
   ovGr.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = ovGr; c.fillRect(0, overlayY, W, overlayH);
+
+  // MODE OVERLAY: tempel foto produk asli di atas background AI
+  if (mode === 'overlay' && productImg) {
+    const pSize = Math.min(W, H) * 0.52;
+    const aspect = productImg.width / productImg.height;
+    const pdw = aspect >= 1 ? pSize : pSize * aspect;
+    const pdh = aspect >= 1 ? pSize / aspect : pSize;
+    // Posisi produk: tengah-bawah agar tidak tutup teks atas
+    const px = W / 2 - pdw / 2;
+    const py = H * 0.42;
+    // Shadow produk
+    c.save();
+    c.shadowColor = 'rgba(0,0,0,0.4)';
+    c.shadowBlur = pSize * 0.08;
+    c.shadowOffsetY = pSize * 0.04;
+    c.drawImage(productImg, px, py, pdw, pdh);
+    c.restore();
+  }
 
   // Posisi teks berdasarkan layout
   const pad = W * 0.09, maxW = W - pad * 2;
@@ -634,11 +693,15 @@ document.getElementById('genBtn').addEventListener('click', async () => {
       setProgress(40 + Math.round((i / variations.length) * 40));
       const v = variations[i];
       try {
+        // Mode overlay: generate background tanpa produk. Mode AI: kirim foto sebagai referensi
+        const imgPrompt = renderMode === 'overlay'
+          ? (v.imagePrompt || prompt) + ', clean background for product placement, no product visible, atmospheric background'
+          : (v.imagePrompt || prompt);
         const imgRes = await fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: v.imagePrompt || prompt,
-            imageUrl: photoUrl,
+            prompt: imgPrompt,
+            imageUrl: renderMode === 'ai' ? photoUrl : null,
             model: selectedModel,
             width: W, height: H
           })
@@ -664,7 +727,7 @@ document.getElementById('genBtn').addEventListener('click', async () => {
       const scheme = SCHEMES[v.schemeIndex % SCHEMES.length];
       const adData = { ...v, scheme };
 
-      const fullCvs = renderAd(W, H, aiImages[i], adData);
+      const fullCvs = renderAd(W, H, aiImages[i], adData, fotoImg, renderMode);
 
       // Preview canvas
       const pvW = Math.round(W * previewScale);
