@@ -10,6 +10,7 @@ export default async function handler(req, res) {
   const { mode, imageBase64, imageMediaType, currentPrompt, prompt, qty } = req.body;
 
   try {
+    // ── ASSIST MODE ──
     if (mode === "assist") {
       const content = [];
       if (imageBase64) content.push({ type: "image", source: { type: "base64", media_type: imageMediaType, data: imageBase64 } });
@@ -22,43 +23,55 @@ Balas HANYA teks promptnya saja.` });
       return res.status(200).json({ prompt: msg.content[0].text.trim() });
     }
 
+    // ── GENERATE MODE ──
     if (mode === "generate") {
       const n = Math.min(Math.max(parseInt(qty) || 3, 1), 8);
       const content = [];
       if (imageBase64) content.push({ type: "image", source: { type: "base64", media_type: imageMediaType, data: imageBase64 } });
-      content.push({ type: "text", text: `Kamu adalah creative director iklan profesional. Lihat foto produk dan buat ${n} variasi konten iklan berdasarkan brief:
+      content.push({ type: "text", text: `Kamu adalah creative director iklan profesional. Lihat foto produk dan buat ${n} variasi konten iklan.
 
 Brief: ${prompt}
 
-Buat ${n} variasi BERBEDA dengan angle, tone, dan image prompt yang unik.
-Layout: ${LAYOUTS.join(", ")}
-Style: ${STYLES.join(", ")}
+Buat tepat ${n} variasi BERBEDA. Tiap variasi punya angle dan tone unik.
+Layout pilihan: ${LAYOUTS.join(", ")}
+Style pilihan: ${STYLES.join(", ")}
+schemeIndex: gunakan angka 0 sampai 5, berbeda tiap variasi.
 
-Balas HANYA JSON valid ini:
-{
-  "variations": [
-    {
-      "brand": "nama brand (maks 18 karakter)",
-      "headline": "tagline powerful (maks 6 kata)",
-      "subtext": "manfaat produk (maks 12 kata)",
-      "cta": "teks CTA (maks 4 kata)",
-      "schemeIndex": 0,
-      "layout": "center",
-      "style": "geometric",
-      "imagePrompt": "English prompt for Together AI image generation, product photography style, max 30 words"
-    }
-  ]
-}
+Balas HANYA dengan JSON valid berikut, tanpa teks lain, tanpa markdown:
+{"variations":[{"brand":"nama brand maks 15 karakter","headline":"tagline maks 5 kata","subtext":"manfaat maks 10 kata","cta":"CTA maks 3 kata","schemeIndex":0,"layout":"center","style":"geometric","imagePrompt":"product photo prompt in English max 20 words"}]}` });
 
-Gunakan schemeIndex 0-5, layout dan style berbeda tiap variasi.` });
+      const msg = await client.messages.create({
+        model: "claude-opus-4-5",
+        max_tokens: 4096,
+        messages: [{ role: "user", content }]
+      });
 
-      const msg = await client.messages.create({ model: "claude-opus-4-5", max_tokens: 2048, messages: [{ role: "user", content }] });
-      const raw = msg.content[0].text.trim().replace(/```json[\s\S]*?```|```/g, "").trim();
-      return res.status(200).json(JSON.parse(raw));
+      let raw = msg.content[0].text.trim();
+
+      // Bersihkan markdown jika ada
+      raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+
+      // Pastikan JSON lengkap dengan menghitung bracket
+      const opens  = (raw.match(/\{/g) || []).length;
+      const closes = (raw.match(/\}/g) || []).length;
+      const aOpens  = (raw.match(/\[/g) || []).length;
+      const aCloses = (raw.match(/\]/g) || []).length;
+      for (let i = 0; i < (aOpens - aCloses); i++) raw += "]";
+      for (let i = 0; i < (opens - closes); i++)   raw += "}";
+
+      const data = JSON.parse(raw);
+
+      // Pastikan jumlah variasi sesuai request
+      if (data.variations && data.variations.length > n) {
+        data.variations = data.variations.slice(0, n);
+      }
+
+      return res.status(200).json(data);
     }
 
     res.status(400).json({ error: "Mode tidak dikenal" });
   } catch (err) {
+    console.error("Claude error:", err);
     res.status(500).json({ error: "Gagal: " + err.message });
   }
 }
