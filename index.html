@@ -713,7 +713,8 @@ document.getElementById('genBtn').addEventListener('click', async () => {
         });
         const imgData = await imgRes.json();
         if (!imgRes.ok) throw new Error(imgData.error);
-        const imgEl = await loadImage(imgData.imageUrl);
+        // Pakai imageData (base64) untuk hindari CORS di canvas
+        const imgEl = await loadImage(imgData.imageData);
         aiImages.push(imgEl);
       } catch(e) {
         console.warn('Gambar variasi', i+1, 'gagal:', e.message);
