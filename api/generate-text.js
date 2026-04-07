@@ -1,8 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const LAYOUTS = ["center", "left", "bottom", "overlay"];
-const STYLES  = ["geometric", "minimal", "bold", "luxury", "organic"];
-
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -10,63 +7,91 @@ export default async function handler(req, res) {
   const { mode, imageBase64, imageMediaType, currentPrompt, prompt, qty } = req.body;
 
   try {
-    // ── ASSIST MODE ──
+    // ── ASSIST: Claude bantu tulis prompt iklan dari foto ──
     if (mode === "assist") {
       const content = [];
-      if (imageBase64) content.push({ type: "image", source: { type: "base64", media_type: imageMediaType, data: imageBase64 } });
-      content.push({ type: "text", text: `Kamu adalah copywriter iklan profesional. Lihat foto produk ini${currentPrompt ? ` dan gunakan konteks: "${currentPrompt}"` : ""}.
+      if (imageBase64) content.push({
+        type: "image",
+        source: { type: "base64", media_type: imageMediaType, data: imageBase64 }
+      });
+      content.push({
+        type: "text",
+        text: `Kamu adalah creative director iklan profesional. Lihat foto produk ini${currentPrompt ? ` dan gunakan konteks: "${currentPrompt}"` : ""}.
 
-Tulis 1 prompt deskripsi iklan dalam Bahasa Indonesia yang natural, persuasif, dan spesifik (maks 2-3 kalimat).
-Balas HANYA teks promptnya saja.` });
+Tulis prompt untuk AI image generator yang akan membuat konten iklan LENGKAP (gambar + teks iklan menyatu).
+Prompt harus dalam Bahasa Inggris dan mencakup:
+- Deskripsi produk dan apa yang harus ada di gambar
+- Teks headline iklan yang harus muncul di gambar (bold, eye-catching)
+- Sub-teks manfaat produk
+- CTA button text
+- Background/setting yang cocok
+- Gaya desain (modern, premium, natural, dll)
 
-      const msg = await client.messages.create({ model: "claude-opus-4-5", max_tokens: 300, messages: [{ role: "user", content }] });
+Format: tulis langsung prompt-nya saja dalam Bahasa Inggris, tanpa penjelasan.
+Contoh format: "Create a professional advertisement for [product]. Include bold headline text '[HEADLINE]', subtext '[BENEFIT]', CTA button '[CTA]'. Background: [setting]. Style: [style]."
+
+Balas HANYA prompt Bahasa Inggris-nya saja.`
+      });
+
+      const msg = await client.messages.create({
+        model: "claude-opus-4-5", max_tokens: 500,
+        messages: [{ role: "user", content }]
+      });
       return res.status(200).json({ prompt: msg.content[0].text.trim() });
     }
 
-    // ── GENERATE MODE ──
+    // ── GENERATE: buat N image prompts berbeda ──
     if (mode === "generate") {
       const n = Math.min(Math.max(parseInt(qty) || 3, 1), 8);
       const content = [];
-      if (imageBase64) content.push({ type: "image", source: { type: "base64", media_type: imageMediaType, data: imageBase64 } });
-      content.push({ type: "text", text: `Kamu adalah creative director iklan profesional. Lihat foto produk dan buat ${n} variasi konten iklan.
+      if (imageBase64) content.push({
+        type: "image",
+        source: { type: "base64", media_type: imageMediaType, data: imageBase64 }
+      });
+      content.push({
+        type: "text",
+        text: `Kamu adalah creative director iklan profesional. Lihat foto produk dan buat ${n} variasi prompt untuk AI image generator.
 
-Brief: ${prompt}
+Brief dari user: ${prompt}
 
-Buat tepat ${n} variasi BERBEDA. Tiap variasi punya angle dan tone unik.
-Layout pilihan: ${LAYOUTS.join(", ")}
-Style pilihan: ${STYLES.join(", ")}
-schemeIndex: gunakan angka 0 sampai 5, berbeda tiap variasi.
+Setiap prompt harus menghasilkan gambar iklan LENGKAP dengan:
+- Foto produk yang prominent di gambar
+- Teks headline iklan yang bold dan eye-catching (dalam Bahasa Indonesia)
+- Sub-teks manfaat
+- Tombol/teks CTA
+- Background yang menarik dan relevan
+- Layout profesional seperti iklan Instagram/Facebook
 
-Balas HANYA dengan JSON valid berikut, tanpa teks lain, tanpa markdown:
-{"variations":[{"brand":"nama brand maks 15 karakter","headline":"tagline maks 5 kata","subtext":"manfaat maks 10 kata","cta":"CTA maks 3 kata","schemeIndex":0,"layout":"center","style":"geometric","imagePrompt":"product photo prompt in English max 20 words"}]}` });
+Buat ${n} variasi BERBEDA dalam hal:
+- Angle/komposisi (produk di tengah, di samping, close-up, dll)
+- Background (studio, alam, lifestyle, gradient, dll)  
+- Gaya desain (modern minimalis, bold colorful, premium elegant, natural organic, dll)
+- Warna dominan
+
+Balas HANYA dengan JSON valid ini, tanpa teks lain:
+{
+  "variations": [
+    {
+      "imagePrompt": "detailed English prompt for AI image generator to create complete ad with product photo, headline text, subtext, CTA button, background - all in one image. Max 80 words.",
+      "headline": "Teks headline dalam Bahasa Indonesia",
+      "style": "nama gaya desain"
+    }
+  ]
+}`
+      });
 
       const msg = await client.messages.create({
-        model: "claude-opus-4-5",
-        max_tokens: 4096,
+        model: "claude-opus-4-5", max_tokens: 4096,
         messages: [{ role: "user", content }]
       });
 
-      let raw = msg.content[0].text.trim();
+      let raw = msg.content[0].text.trim().replace(/```json[\s\S]*?```|```/g, "").trim();
+      const opens = (raw.match(/\{/g)||[]).length - (raw.match(/\}/g)||[]).length;
+      const aOpens = (raw.match(/\[/g)||[]).length - (raw.match(/\]/g)||[]).length;
+      for (let i = 0; i < aOpens; i++) raw += "]";
+      for (let i = 0; i < opens; i++) raw += "}";
 
-      // Bersihkan markdown jika ada
-      raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
-
-      // Pastikan JSON lengkap dengan menghitung bracket
-      const opens  = (raw.match(/\{/g) || []).length;
-      const closes = (raw.match(/\}/g) || []).length;
-      const aOpens  = (raw.match(/\[/g) || []).length;
-      const aCloses = (raw.match(/\]/g) || []).length;
-      for (let i = 0; i < (aOpens - aCloses); i++) raw += "]";
-      for (let i = 0; i < (opens - closes); i++)   raw += "}";
-
-      const data = JSON.parse(raw);
-
-      // Pastikan jumlah variasi sesuai request
-      if (data.variations && data.variations.length > n) {
-        data.variations = data.variations.slice(0, n);
-      }
-
-      return res.status(200).json(data);
+      return res.status(200).json(JSON.parse(raw));
     }
 
     res.status(400).json({ error: "Mode tidak dikenal" });
