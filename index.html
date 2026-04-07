@@ -273,10 +273,6 @@
         <textarea id="promptArea" placeholder="Deskripsikan iklan yang kamu inginkan — produk, manfaat, target audiens, gaya..." rows="5"></textarea>
         <div class="prompt-actions">
           <span class="char-hint" id="charHint">0 karakter</span>
-          <button class="claude-btn" id="aiAssistBtn" disabled>
-            <span id="aiIcon">✦</span>
-            <span id="aiLabel">Claude Assist</span>
-          </button>
         </div>
       </div>
     </div>
@@ -364,7 +360,7 @@
       </div>
       <div class="progress-steps">
         <div class="p-step" id="ps1"><div class="p-dot"></div>Upload foto ke server</div>
-        <div class="p-step" id="ps2"><div class="p-dot"></div>Claude membuat prompt iklan</div>
+        <div class="p-step" id="ps2"><div class="p-dot"></div>Foto produk siap</div>
         <div class="p-step" id="ps3"><div class="p-dot"></div>AI generate gambar iklan</div>
       </div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
@@ -424,7 +420,6 @@ function handleFile(file) {
       document.getElementById('fotoName').textContent = file.name;
       document.getElementById('fotoBar').classList.add('show');
       uploadZone.classList.add('has-file');
-      document.getElementById('aiAssistBtn').disabled = false;
       checkReady(); toast('✓ Foto diupload!', 'ok');
     };
     img.src = src;
@@ -446,28 +441,7 @@ promptArea.addEventListener('input', () => {
   checkReady();
 });
 
-document.getElementById('aiAssistBtn').addEventListener('click', async () => {
-  if (!fotoBase64) return;
-  const btn = document.getElementById('aiAssistBtn');
-  const icon = document.getElementById('aiIcon');
-  const label = document.getElementById('aiLabel');
-  btn.disabled = true; icon.textContent = '⟳'; label.textContent = 'Menganalisis...';
-  try {
-    const res = await fetch('/api/generate-text', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'assist', imageBase64: fotoBase64, imageMediaType: fotoMediaType, currentPrompt: promptArea.value.trim() })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    promptArea.value = data.prompt;
-    promptArea.dispatchEvent(new Event('input'));
-    toast('✓ Claude sudah tulis prompt!', 'ok');
-  } catch(err) {
-    toast('Gagal: ' + err.message, 'err');
-  } finally {
-    btn.disabled = false; icon.textContent = '✦'; label.textContent = 'Claude Assist';
-  }
-});
+// Claude Assist dihapus — prompt manual dari user
 
 // ── RATIO ──
 document.getElementById('ratioGrid').querySelectorAll('.ratio-btn').forEach(btn => {
@@ -520,45 +494,22 @@ document.getElementById('genBtn').addEventListener('click', async () => {
   setProgress(0);
 
   try {
-    // STEP 1: Upload
-    setPStep('ps1', 'active');
-    setProgress(5, 'Mengupload foto...', 'Menyimpan foto produk ke server');
-    if (!supabaseUrl) {
-      const upRes = await fetch('/api/upload-image', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: fotoBase64, imageMediaType: fotoMediaType, fileName: fotoFile?.name || 'foto' })
-      });
-      const upData = await upRes.json();
-      if (!upRes.ok) throw new Error('Upload gagal: ' + upData.error);
-      supabaseUrl = upData.url;
-    }
-    setPStep('ps1', 'done'); setProgress(20);
-
-    // STEP 2: Claude
-    setPStep('ps2', 'active');
-    setProgress(25, 'Claude membuat prompt...', 'Menganalisis foto dan membuat konten iklan');
-    const textRes = await fetch('/api/generate-text', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'generate', imageBase64: fotoBase64, imageMediaType: fotoMediaType, prompt, qty })
-    });
-    const textData = await textRes.json();
-    if (!textRes.ok) throw new Error('Claude: ' + textData.error);
-    const variations = textData.variations || [];
-    setPStep('ps2', 'done'); setProgress(40);
-
-    // STEP 3: Generate images
+    // STEP 1: Generate langsung — prompt dari user, tidak perlu Claude
+    setPStep('ps1', 'done');
+    setPStep('ps2', 'done');
     setPStep('ps3', 'active');
+    setProgress(10, 'Generating iklan...', `Menggunakan ${selectedModel}`);
+
     const W = selectedSize.w, H = selectedSize.h;
     const grid = document.getElementById('resultsGrid');
 
-    for (let i = 0; i < variations.length; i++) {
-      const pct = 40 + Math.round((i / variations.length) * 55);
-      setProgress(pct, `Generate iklan ${i+1} dari ${variations.length}...`, `Menggunakan ${selectedModel}`);
-      const v = variations[i];
+    for (let i = 0; i < qty; i++) {
+      const pct = 10 + Math.round((i / qty) * 85);
+      setProgress(pct, `Generate iklan ${i+1} dari ${qty}...`, `Menggunakan ${selectedModel}`);
       try {
         const imgRes = await fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: v.imagePrompt, imageBase64: fotoBase64, imageMediaType: fotoMediaType, model: selectedModel, width: W, height: H })
+          body: JSON.stringify({ prompt, imageBase64: fotoBase64, imageMediaType: fotoMediaType, model: selectedModel, width: W, height: H })
         });
         const imgData = await imgRes.json();
         if (!imgRes.ok) throw new Error(imgData.error);
