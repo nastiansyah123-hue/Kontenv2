@@ -166,7 +166,7 @@
   <div class="logo">AdGen <span>— AI Ad Creator</span></div>
   <div class="badges">
     <span class="badge">Claude AI</span>
-    <span class="badge">Together AI</span>
+    <span class="badge">laozhang.ai</span>
   </div>
 </header>
 
@@ -259,25 +259,28 @@
       </div>
 
       <div class="settings-row" id="modelSelectWrap">
-        <div class="field-label">Model AI gambar (Together AI)</div>
+        <div class="field-label">Model AI gambar (laozhang.ai)</div>
         <select class="model-select" id="modelSelect">
-          <optgroup label="⚡ Cepat & Gratis">
-            <option value="flux-free">FLUX Schnell Free — Gratis, ~4 detik</option>
-            <option value="flux-schnell">FLUX Schnell — Cepat</option>
+          <optgroup label="🏆 OpenAI">
+            <option value="gpt-image-1" selected>GPT-Image-1 — Terbaik, kayak ChatGPT</option>
+            <option value="sora-image">Sora Image — Cepat & efisien</option>
           </optgroup>
-          <optgroup label="🎨 Image-to-Image (pakai foto sebagai referensi)">
-            <option value="wan-2-6" selected>Wan 2.6 — Image-to-image terbaik</option>
-            <option value="flux-kontext">FLUX Kontext Dev — Image editing</option>
-            <option value="flux-1-1-pro">FLUX 1.1 Pro — Kualitas tertinggi</option>
+          <optgroup label="🎨 Seedream (ByteDance) — Image-to-Image">
+            <option value="seedream-4-5">Seedream 4.5 — Terbaru, foto produk jadi referensi</option>
+            <option value="seedream-4-0">Seedream 4.0 — Foto produk jadi referensi</option>
           </optgroup>
-          <optgroup label="🖼 Text-to-Image Kualitas Tinggi">
-            <option value="flux-dev">FLUX Dev — Detail tinggi</option>
-            <option value="sd-3-5">Stable Diffusion 3.5</option>
-            <option value="sd-3-5-turbo">SD 3.5 Turbo — Cepat</option>
-            <option value="playground-v3">Playground v3 — Artistik</option>
+          <optgroup label="⚡ FLUX Kontext — Image Editing">
+            <option value="flux-kontext-pro">FLUX Kontext Pro — Edit foto produk</option>
+            <option value="flux-kontext-max">FLUX Kontext Max — Kualitas tertinggi</option>
+            <option value="flux-pro">FLUX Pro — Text-to-image</option>
+          </optgroup>
+          <optgroup label="🌟 Google & Lainnya">
+            <option value="gemini-flash-image">Gemini Flash Image — Ultra cepat</option>
+            <option value="gemini-flash-edit">Gemini Flash Edit — Composite foto</option>
+            <option value="nano-banana-pro">Nano Banana Pro — Output 4K</option>
           </optgroup>
         </select>
-        <div class="model-note" id="modelNote">Model image-to-image akan menggunakan foto produkmu sebagai referensi visual</div>
+        <div class="model-note" id="modelNote">GPT-Image-1: kualitas terbaik, sama persis kayak ChatGPT. Support foto produk sebagai referensi.</div>
       </div>
 
       <div class="settings-row">
@@ -300,7 +303,7 @@
     <div class="progress-steps">
       <div class="progress-step" id="ps1"><div class="progress-dot"></div>Upload foto ke Supabase</div>
       <div class="progress-step" id="ps2"><div class="progress-dot"></div>Claude AI menganalisis & membuat konten</div>
-      <div class="progress-step" id="ps3"><div class="progress-dot"></div>Together AI generate gambar iklan</div>
+      <div class="progress-step" id="ps3"><div class="progress-dot"></div>laozhang.ai generate gambar iklan</div>
       <div class="progress-step" id="ps4"><div class="progress-dot"></div>Render hasil akhir</div>
     </div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
@@ -423,15 +426,16 @@ uploadBox.addEventListener('drop', e => { e.preventDefault(); uploadBox.classLis
 
 // ── MODEL SELECT NOTE ──
 const modelNotes = {
-  'flux-free': 'Gratis, cepat ~4 detik. Tanpa referensi foto.',
-  'flux-schnell': 'Cepat. Tanpa referensi foto.',
-  'wan-2-6': 'Image-to-image — foto produkmu jadi referensi visual utama.',
-  'flux-kontext': 'Image editing — transformasi foto produk dengan AI.',
-  'flux-1-1-pro': 'Kualitas tertinggi dengan foto sebagai referensi gaya.',
-  'flux-dev': 'Kualitas tinggi, ~20 detik. Tanpa referensi foto.',
-  'sd-3-5': 'Detail tinggi. Tanpa referensi foto.',
-  'sd-3-5-turbo': 'Cepat. Tanpa referensi foto.',
-  'playground-v3': 'Gaya artistik. Tanpa referensi foto.',
+  'gpt-image-1':        '⭐ Terbaik — sama persis kayak ChatGPT. Foto produk jadi referensi langsung.',
+  'sora-image':         'Kualitas bagus untuk batch generate iklan, cepat.',
+  'seedream-4-5':       '🎨 Seedream terbaru — foto produkmu jadi referensi visual, hasil sangat natural.',
+  'seedream-4-0':       '🎨 Seedream — foto produk jadi referensi, cocok untuk iklan produk.',
+  'flux-kontext-pro':   '✂️ FLUX Kontext — edit foto produk + background baru, produk tetap asli.',
+  'flux-kontext-max':   '✂️ FLUX Kontext Max — kualitas tertinggi untuk image editing.',
+  'flux-pro':           '🖼 FLUX Pro — text-to-image kualitas tinggi.',
+  'gemini-flash-image': '⚡ Google Gemini — ultra cepat, cocok untuk prototipe.',
+  'gemini-flash-edit':  '🖼 Gemini Edit — composite multi-foto, style transfer.',
+  'nano-banana-pro':    '🍌 Nano Banana Pro — output 4K, sangat tajam.',
 };
 document.getElementById('modelSelect').addEventListener('change', e => {
   document.getElementById('modelNote').textContent = modelNotes[e.target.value] || '';
@@ -497,7 +501,7 @@ function setRenderMode(mode) {
   document.getElementById('modeAI').classList.toggle('active', mode === 'ai');
   const descs = {
     'overlay': 'Foto produkmu ditempel di atas background yang di-generate AI — produk terlihat persis aslinya',
-    'ai': 'Together AI generate ulang gambar iklan dengan foto produkmu sebagai referensi visual'
+    'ai': 'laozhang.ai generate ulang gambar iklan dengan foto produkmu sebagai referensi visual'
   };
   document.getElementById('modeDesc').textContent = descs[mode];
   // Sembunyikan model select jika mode overlay (hanya perlu generate background)
@@ -682,7 +686,7 @@ document.getElementById('genBtn').addEventListener('click', async () => {
     const variations = textData.variations || [];
     setPStep('ps2', 'done'); setProgress(40);
 
-    // ── STEP 3: Together AI generate gambar per variasi ──
+    // ── STEP 3: laozhang.ai generate gambar per variasi ──
     setPStep('ps3', 'active');
     const selectedModel = document.getElementById('modelSelect').value;
     const W = selectedSize.w, H = selectedSize.h;
@@ -701,7 +705,8 @@ document.getElementById('genBtn').addEventListener('click', async () => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             prompt: imgPrompt,
-            imageUrl: renderMode === 'ai' ? photoUrl : null,
+            imageBase64: renderMode === 'ai' ? fotoBase64 : null,
+            imageMediaType: renderMode === 'ai' ? fotoMediaType : null,
             model: selectedModel,
             width: W, height: H
           })
