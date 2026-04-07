@@ -546,11 +546,11 @@ document.getElementById('genBtn').addEventListener('click', async () => {
     }
 
     setPStep('ps3', 'done'); setProgress(100, 'Selesai! 🎉', '');
-    document.getElementById('resultsTitle').textContent = `${variations.length} Variasi Iklan`;
+    document.getElementById('resultsTitle').textContent = `${qty} Variasi Iklan`;
     document.getElementById('resultsMeta').textContent = `${W}×${H}px · ${selectedModel}`;
     progressOverlay.classList.remove('show');
     document.getElementById('resultsWrap').classList.add('show');
-    toast(`✓ ${variations.length} iklan berhasil!`, 'ok');
+    toast(`✓ ${qty} iklan berhasil!`, 'ok');
 
   } catch(err) {
     progressOverlay.classList.remove('show');
