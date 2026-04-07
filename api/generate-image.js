@@ -13,7 +13,20 @@ const MODELS = {
   },
 };
 
-async function callNanoBanana(cfg, prompt, imageBase64, imageMediaType, apiKey) {
+// Map ukuran canvas ke aspectRatio Nano Banana
+function getAspectRatio(width, height) {
+  const ratio = width / height;
+  if (Math.abs(ratio - 1) < 0.05)      return "1:1";
+  if (Math.abs(ratio - 9/16) < 0.05)   return "9:16";
+  if (Math.abs(ratio - 16/9) < 0.05)   return "16:9";
+  if (Math.abs(ratio - 4/5) < 0.05)    return "4:5";
+  if (Math.abs(ratio - 5/4) < 0.05)    return "5:4";
+  if (Math.abs(ratio - 3/4) < 0.05)    return "3:4";
+  if (Math.abs(ratio - 4/3) < 0.05)    return "4:3";
+  return "1:1"; // default
+}
+
+async function callNanoBanana(cfg, prompt, imageBase64, imageMediaType, apiKey, width, height) {
   const parts = [{ text: prompt }];
 
   if (imageBase64 && imageMediaType) {
@@ -22,11 +35,16 @@ async function callNanoBanana(cfg, prompt, imageBase64, imageMediaType, apiKey) 
     });
   }
 
+  const aspectRatio = getAspectRatio(width || 1080, height || 1080);
+
   const body = {
     contents: [{ parts }],
     generationConfig: {
       responseModalities: ["IMAGE"],
-      imageConfig: { imageSize: cfg.imageSize }
+      imageConfig: {
+        imageSize: cfg.imageSize,
+        aspectRatio: aspectRatio
+      }
     }
   };
 
@@ -60,7 +78,7 @@ export default async function handler(req, res) {
   const cfg = MODELS[modelKey] || MODELS["nano-banana"];
 
   try {
-    const imageData = await callNanoBanana(cfg, prompt, imageBase64, imageMediaType, apiKey);
+    const imageData = await callNanoBanana(cfg, prompt, imageBase64, imageMediaType, apiKey, width, height);
     return res.status(200).json({ imageData, modelUsed: cfg.label });
 
   } catch (err) {
@@ -71,7 +89,7 @@ export default async function handler(req, res) {
       try {
         console.log("Fallback ke Nano Banana...");
         const fallbackData = await callNanoBanana(
-          MODELS["nano-banana"], prompt, imageBase64, imageMediaType, apiKey
+          MODELS["nano-banana"], prompt, imageBase64, imageMediaType, apiKey, width, height
         );
         return res.status(200).json({ imageData: fallbackData, modelUsed: "Nano Banana (fallback)" });
       } catch (fbErr) {
