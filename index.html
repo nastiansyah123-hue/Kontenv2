@@ -483,50 +483,6 @@ function checkReady() {
 }
 
 
-// ── OVERLAY PRODUK DI ATAS BACKGROUND AI ──
-async function overlayProduct(bgDataUrl, productBase64, productMediaType, W, H) {
-  const cvs = document.createElement('canvas');
-  cvs.width = W; cvs.height = H;
-  const ctx = cvs.getContext('2d');
-
-  // 1. Gambar background AI
-  await new Promise((resolve, reject) => {
-    const bg = new Image();
-    bg.onload = () => { ctx.drawImage(bg, 0, 0, W, H); resolve(); };
-    bg.onerror = reject;
-    bg.src = bgDataUrl;
-  });
-
-  // 2. Overlay foto produk di tengah
-  if (productBase64 && productMediaType) {
-    await new Promise((resolve) => {
-      const prod = new Image();
-      prod.onload = () => {
-        // Hitung ukuran produk — 52% dari sisi terpendek
-        const prodSize = Math.min(W, H) * 0.52;
-        const aspect = prod.width / prod.height;
-        const pdw = aspect >= 1 ? prodSize : prodSize * aspect;
-        const pdh = aspect >= 1 ? prodSize / aspect : prodSize;
-        const px = (W - pdw) / 2;
-        // Posisi vertikal: tengah sedikit ke bawah (hindari teks atas)
-        const py = H * 0.28;
-        // Drop shadow untuk produk
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,0.35)';
-        ctx.shadowBlur = pdw * 0.06;
-        ctx.shadowOffsetY = pdw * 0.04;
-        ctx.drawImage(prod, px, py, pdw, pdh);
-        ctx.restore();
-        resolve();
-      };
-      prod.onerror = resolve; // skip jika gagal
-      prod.src = `data:${productMediaType};base64,${productBase64}`;
-    });
-  }
-
-  return cvs;
-}
-
 // ── GENERATE ──
 document.getElementById('genBtn').addEventListener('click', async () => {
   const prompt = promptArea.value.trim();
@@ -564,21 +520,17 @@ document.getElementById('genBtn').addEventListener('click', async () => {
         const imgData = await imgRes.json();
         if (!imgRes.ok) throw new Error(imgData.error);
 
-        // Overlay foto produk asli di atas background AI
-        const finalCanvas = await overlayProduct(imgData.imageData, fotoBase64, fotoMediaType, W, H);
-        const finalDataUrl = finalCanvas.toDataURL('image/png');
-
         const card = document.createElement('div');
         card.className = 'result-card';
         const img = document.createElement('img');
-        img.className = 'result-img'; img.src = finalDataUrl; img.alt = `Variasi ${i+1}`;
+        img.className = 'result-img'; img.src = imgData.imageData; img.alt = `Variasi ${i+1}`;
         const foot = document.createElement('div'); foot.className = 'result-foot';
         foot.innerHTML = `<span class="result-info">Variasi ${i+1} · ${W}×${H}</span>`;
         const dlBtn = document.createElement('button');
         dlBtn.className = 'dl-btn'; dlBtn.textContent = '↓ Download';
         dlBtn.addEventListener('click', () => {
           const a = document.createElement('a');
-          a.href = finalDataUrl; a.download = `iklan-${i+1}.png`; a.click();
+          a.href = imgData.imageData; a.download = `iklan-${i+1}.png`; a.click();
         });
         img.addEventListener('click', () => dlBtn.click());
         foot.appendChild(dlBtn); card.appendChild(img); card.appendChild(foot);
