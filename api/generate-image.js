@@ -72,7 +72,10 @@ async function callOpenAI(cfg, prompt, imageUrl, W, H, apiKey) {
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    console.error("Seedream full error:", JSON.stringify(data));
+    throw new Error(data.error?.message || data.message || JSON.stringify(data));
+  }
   const url = data.data?.[0]?.url;
   const b64 = data.data?.[0]?.b64_json;
   if (b64) return `data:image/png;base64,${b64}`;
