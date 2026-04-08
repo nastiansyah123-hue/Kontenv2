@@ -51,8 +51,8 @@ async function callGemini(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey
   return `data:image/png;base64,${b64}`;
 }
 
-// OpenAI-compatible format (Seedream)
-async function callOpenAI(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey) {
+// OpenAI-compatible format (Seedream) — pakai imageUrl (URL publik dari Supabase)
+async function callOpenAI(cfg, prompt, imageUrl, W, H, apiKey) {
   const aspectRatio = getAspectRatio(W, H);
   const sizeMap = { "9:16": "1024x1792", "16:9": "1792x1024", "4:5": "1024x1280", "5:4": "1280x1024", "4:3": "1365x1024", "3:4": "1024x1365" };
   const body = {
@@ -62,8 +62,9 @@ async function callOpenAI(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey
     size: sizeMap[aspectRatio] || "1024x1024",
     response_format: "url",
   };
-  if (imageBase64 && imageMediaType) {
-    body.image = `data:${imageMediaType};base64,${imageBase64}`;
+  // Seedream butuh URL publik, bukan base64
+  if (imageUrl) {
+    body.image = imageUrl;
   }
   const res = await fetch(`${LAOZHANG_BASE}/v1/images/generations`, {
     method: "POST",
@@ -82,7 +83,7 @@ async function callOpenAI(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { prompt, imageBase64, imageMediaType, model: modelKey, width, height } = req.body;
+  const { prompt, imageBase64, imageMediaType, imageUrl, model: modelKey, width, height } = req.body;
   if (!prompt) return res.status(400).json({ error: "prompt wajib diisi" });
 
   const apiKey = process.env.LAOZHANG_API_KEY;
@@ -106,7 +107,7 @@ TYPOGRAPHY RULES (strictly follow):
   try {
     let imageData;
     if (cfg.type === "openai") {
-      imageData = await callOpenAI(cfg, enhancedPrompt, imageBase64, imageMediaType, W, H, apiKey);
+      imageData = await callOpenAI(cfg, enhancedPrompt, imageUrl, W, H, apiKey);
     } else {
       imageData = await callGemini(cfg, enhancedPrompt, imageBase64, imageMediaType, W, H, apiKey);
     }
