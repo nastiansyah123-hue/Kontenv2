@@ -51,21 +51,31 @@ async function callGemini(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey
   return `data:image/png;base64,${b64}`;
 }
 
-// OpenAI-compatible format (Seedream) — pakai imageUrl (URL publik dari Supabase)
+// Seedream — format sesuai dokumentasi laozhang.ai
 async function callOpenAI(cfg, prompt, imageUrl, W, H, apiKey) {
+  // Seedream pakai size "1K"/"2K" bukan pixel dimension
   const aspectRatio = getAspectRatio(W, H);
-  const sizeMap = { "9:16": "1024x1792", "16:9": "1792x1024", "4:5": "1024x1280", "5:4": "1280x1024", "4:3": "1365x1024", "3:4": "1024x1365" };
+  // Seedream pakai ratio format berbeda
+  const ratioMap = {
+    "1:1": "1:1", "9:16": "9:16", "16:9": "16:9",
+    "4:5": "4:5", "5:4": "5:4", "3:4": "3:4", "4:3": "4:3"
+  };
   const body = {
     model: cfg.model,
     prompt,
-    n: 1,
-    size: sizeMap[aspectRatio] || "1024x1024",
     response_format: "url",
+    size: "2K",
+    watermark: false,
   };
-  // Seedream butuh URL publik, bukan base64
+  // Tambah ratio jika bukan 1:1
+  if (aspectRatio !== "1:1") {
+    body.aspect_ratio = ratioMap[aspectRatio] || "1:1";
+  }
+  // Image-to-image: kirim URL foto produk
   if (imageUrl) {
     body.image = imageUrl;
   }
+  console.log("Seedream request body:", JSON.stringify({ ...body, prompt: body.prompt.slice(0, 50) + "..." }));
   const res = await fetch(`${LAOZHANG_BASE}/v1/images/generations`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
