@@ -514,7 +514,7 @@ document.getElementById('genBtn').addEventListener('click', async () => {
       try {
         const imgRes = await fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, imageBase64: fotoBase64, imageMediaType: fotoMediaType, model: selectedModel, width: W, height: H })
+          body: JSON.stringify({ prompt, imageBase64: fotoBase64, imageMediaType: fotoMediaType, imageUrl: supabaseUrl, model: selectedModel, width: W, height: H })
         });
         const imgData = await imgRes.json();
         if (!imgRes.ok) throw new Error(imgData.error);
