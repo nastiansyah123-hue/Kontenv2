@@ -105,18 +105,17 @@ export default async function handler(req, res) {
   const cfg = MODELS[modelKey] || MODELS["nano-banana"];
   const W = width || 1080, H = height || 1080;
 
-  // Generate background + teks iklan TANPA produk — produk akan di-overlay setelahnya
-  const enhancedPrompt = `Create a professional advertisement background for: ${prompt}
+  // Serahkan semua ke AI — produk, background, teks, layout
+  const enhancedPrompt = `Create a complete professional advertisement image for: ${prompt}
 
-IMPORTANT RULES:
-- Generate ONLY the background scene and text overlay — DO NOT include any product object
-- Leave a large EMPTY CENTER SPACE (about 50% of image) for product placement
-- Add 1 bold headline text (3-5 words) at the TOP area
-- Add 1 short subtext (5-8 words) at the BOTTOM area  
-- Add 1 CTA button with rounded corners at the BOTTOM
-- Use clean sans-serif font, white text with shadow
-- Beautiful gradient or scene background that matches the product theme
-- Professional advertising layout`;
+RULES:
+- Include the actual product from the reference photo prominently in the center
+- Add compelling headline text (3-5 words, bold, large) at top
+- Add short benefit text (5-8 words) at bottom
+- Add CTA button at bottom
+- Beautiful background that matches product theme
+- Clean modern ad layout like Instagram/Facebook ads
+- Text must be clear, legible, professional sans-serif font`;
 
   try {
     let imageData;
