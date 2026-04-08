@@ -91,12 +91,24 @@ export default async function handler(req, res) {
   const cfg = MODELS[modelKey] || MODELS["nano-banana"];
   const W = width || 1080, H = height || 1080;
 
+  // Enhance prompt dengan instruksi teks yang clean dan profesional
+  const enhancedPrompt = `${prompt}
+
+TYPOGRAPHY RULES (strictly follow):
+- Maximum 1 short headline (3-5 words, bold, large white text with dark shadow)
+- Maximum 1 short subtext (5-8 words, smaller white text)
+- 1 CTA button with rounded corners
+- Clean sans-serif font only
+- All text must be legible and well-positioned
+- NO cluttered text, NO small text, NO decorative fonts
+- Text placement: top or bottom area, not overlapping the product`;
+
   try {
     let imageData;
     if (cfg.type === "openai") {
-      imageData = await callOpenAI(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey);
+      imageData = await callOpenAI(cfg, enhancedPrompt, imageBase64, imageMediaType, W, H, apiKey);
     } else {
-      imageData = await callGemini(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey);
+      imageData = await callGemini(cfg, enhancedPrompt, imageBase64, imageMediaType, W, H, apiKey);
     }
     return res.status(200).json({ imageData, modelUsed: cfg.label });
 
@@ -106,7 +118,7 @@ export default async function handler(req, res) {
     // Fallback ke Nano Banana
     if (modelKey !== "nano-banana") {
       try {
-        const fallback = await callGemini(MODELS["nano-banana"], prompt, imageBase64, imageMediaType, W, H, apiKey);
+        const fallback = await callGemini(MODELS["nano-banana"], enhancedPrompt, imageBase64, imageMediaType, W, H, apiKey);
         return res.status(200).json({ imageData: fallback, modelUsed: "Nano Banana (fallback)" });
       } catch (fbErr) {
         console.error("Fallback gagal:", fbErr.message);
