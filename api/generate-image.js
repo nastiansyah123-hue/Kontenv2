@@ -38,16 +38,30 @@ async function callGemini(cfg, prompt, imageBase64, imageMediaType, W, H, apiKey
       imageConfig: { imageSize: cfg.imageSize, aspectRatio: getAspectRatio(W, H) }
     }
   };
-  const res = await fetch(`${LAOZHANG_BASE}${cfg.endpoint}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-  const b64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!b64) throw new Error("Tidak ada gambar di response");
-  return `data:image/png;base64,${b64}`;
+  // Retry hingga 3x jika server overload
+  const MAX_RETRY = 3;
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    const res = await fetch(`${LAOZHANG_BASE}${cfg.endpoint}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    // Jika server overload, tunggu dan coba lagi
+    if (!res.ok) {
+      const msg = data.error?.message || JSON.stringify(data);
+      const isOverload = msg.includes("饱和") || msg.includes("overload") || msg.includes("rate") || res.status === 429 || res.status === 503;
+      if (isOverload && attempt < MAX_RETRY) {
+        console.warn(`Overload, retry ${attempt}/${MAX_RETRY} in 3s...`);
+        await new Promise(r => setTimeout(r, 3000 * attempt));
+        continue;
+      }
+      throw new Error(msg);
+    }
+    const b64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!b64) throw new Error("Tidak ada gambar di response");
+    return `data:image/png;base64,${b64}`;
+  }
 }
 
 
